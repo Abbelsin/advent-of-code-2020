@@ -1,8 +1,12 @@
+//#![feature(str_split_once)]
+
+
 use std::collections::HashMap;
-use std::collections::HashSet;
-use std::fs;
+// use std::collections::HashSet;
+// use std::fs;
 use regex::Regex;
 use lazy_static::lazy_static;
+use std::env;
 
 //use std::io::BufRead;
 
@@ -63,24 +67,33 @@ fn validate(pwd_map: &HashMap<&str,&str>) -> bool {
 }
 
 fn validate_better(pwd_map: &HashMap<&str,&str>) -> bool {
-    let has_valid_fields = REQ_FIELDS.iter().all(|field| pwd_map.contains_key(field));
 
-    let valid = pwd_map.iter().all(|(&key, &val)| validate_field(key,val));
-    if !valid {
-        println!("{:?}", pwd_map);
-    }
+    let valid = pwd_map.iter().all(|(&key, &val)| validate_and_print(key,val));
+    // if !valid {
+    //     println!("{:?}", pwd_map);
+    // }
     return valid;
 }
-
+fn validate_and_print(key: &str, content: &str) -> bool {
+    if validate_field(key, content) {
+        return true;
+    } else {
+        //println!("Failed at key:'{}'={}",key,content);
+        return false;
+    }
+}
 fn validate_field(key: &str, content: &str) -> bool {
 
     match key {
         "byr" => { //four digits; at least 1920 and at most 2002
-            if let Ok(byr) = content.parse::<i32>() {
-                return byr >= 1920 && byr <= 2002;
-            } else {
-                return false;
-            }
+            return {
+                content.chars().count() == 4 &&
+                if let Ok(byr) = content.parse::<i32>() {
+                    byr >= 1920 && byr <= 2002
+                } else {
+                    false
+                }
+            };
         }
         "iyr" => { // four digits; at least 2010 and at most 2020
             return {
@@ -103,25 +116,37 @@ fn validate_field(key: &str, content: &str) -> bool {
             };
         }
         "hgt" => { // a number followed by either cm or in:
-            if content.ends_with("cm") {
-                //content.chars().last()
+            if content.ends_with("cm") { // the number must be at least 150 and at most 193
                 let mut chars = content.chars();
                 chars.next_back();
                 chars.next_back();
-                if let Ok(_hgt) = chars.as_str().parse::<u32>() {
-                    return  true;
+                if let Ok(hgt) = chars.as_str().parse::<u32>() {
+                    return hgt >= 150 && hgt <= 193;
                 } else {
                     return false;
                 }
-            } else if content.ends_with("in") {
-                true
+            } else if content.ends_with("in") { // the number must be at least 59 and at most 76
+                let mut chars = content.chars();
+                chars.next_back();
+                chars.next_back();
+                if let Ok(hgt) = chars.as_str().parse::<u32>() {
+                    return hgt >= 59 && hgt <= 76;
+                } else {
+                    return false;
+                }
             } else {
                 return false;
             }
         }
         "hcl" => { // a # followed by exactly six characters 0-9 or a-f
-            return content.chars().count() == 7 &&
-            content.chars().all(|c| (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || c == '#');
+            if content.starts_with("#") {
+                let mut chars = content.chars();
+                chars.next();
+                return content.chars().count() == 7 &&
+                chars.all(|c| (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'));
+            } else {
+                return false;
+            }
         }
         "ecl" => { // exactly one of: amb blu brn gry grn hzl oth
             match content {
@@ -142,50 +167,71 @@ fn validate_field(key: &str, content: &str) -> bool {
     }
 }
 
+#[test]
+fn test_validate_field() {
+    // byr valid:   2002
+    // byr invalid: 2003
+    assert_eq!(true, validate_field("byr", "2002"), "byr valid:   2002");
+    assert_eq!(false, validate_field("byr", "2003"), "byr invalid: 2003");
+    
+    // hgt valid:   60in
+    // hgt valid:   190cm
+    // hgt invalid: 190in
+    // hgt invalid: 190
+    assert_eq!(true, validate_field("hgt",  "60in"), "hgt valid:   60in");
+    assert_eq!(true, validate_field("hgt",  "190cm"), "hgt valid:   190cm");
+    assert_eq!(false, validate_field("hgt", "190in"), "hgt invalid: 190in");
+    assert_eq!(false, validate_field("hgt", "190"), "hgt invalid: 190");
+
+    // hcl valid:   #123abc
+    // hcl invalid: #123abz
+    // hcl invalid: 123a
+    assert_eq!(true, validate_field("hcl", "#123abc"), "hcl valid:   #123abc");
+    assert_eq!(false, validate_field("hcl","#123abz"), "hcl invalid: #123abz" );
+    assert_eq!(false, validate_field("hcl","123abc"), "hcl invalid: 123abc");
+
+    // ecl valid:   brn
+    // ecl invalid: wat
+    assert_eq!(true, validate_field("ecl", "brn"), "ecl valid:   brn");
+    assert_eq!(false, validate_field("ecl", "wat"), "ecl invalid: wat");
+
+    // pid valid:   000000001
+    // pid invalid: 0123456789
+    assert_eq!(true, validate_field("pid", "000000001" ), "pid valid:   000000001");
+    assert_eq!(false, validate_field("pid", "0123456789" ), "pid invalid: 0123456789");
+}
 
 
 fn main() {
+    let args: Vec<String> = env::args().collect();
+    let inp_arg = &args[1];
+    let mut part1 = true;
+    let mut part2 = true;
+    if inp_arg.contains("2") && !inp_arg.contains("1") {
+        part1 = false;
+    }
+    if inp_arg.contains("1") && !inp_arg.contains("2"){
+        part2 = false;
+    }
     println!("~~~~ AoC 2020 day04 ~~~~");
-    let input_string = include_str!("../input.txt");
-    let inputs: Vec<&str> = input_string.split("\r\n\r\n").collect();
-    
+
+    let mut input_string = include_str!("../input.txt");
+    if args.len() > 2 {
+        input_string = &args[2];
+    }
+    let mut clean_inputs = String::from(input_string);
+    clean_inputs = clean_inputs.replace("\r","");
+    let inputs: Vec<&str> = clean_inputs.split("\n\n").collect();
     let passwords: Vec<HashMap<&str,&str>> = inputs.iter().map(|pwd| parse_password(pwd)).collect();
-    
     let n = passwords.iter().count();
-    println!("{} passwords!", n);
-    println!("{} valid passwords!", passwords.iter().filter(|pwd| validate(pwd)).count());
-
-    //println!("{}",REQQ_FIELDS.iter().all(|item| timber_resources.contains(item)));
+    print!("{} passwords!\n\n", n);
+    if part1 {
+        println!("--- Part 1 ---");
+        print!("- {} valid passports!\n\n", passwords.iter().filter(|pwd| validate(pwd)).count());
+    }
+    if part2 {
+        println!("--- Part 2 ---");
+        print!("- {} valid passports!\n\n", passwords.iter().filter(|pwd| validate_better(pwd)).filter(|pwd| validate(pwd)).count());
+    }
 }
 
-#[test]
-fn part_2() {
-    println!("~~~~ AoC 2020 day04 part 2 ~~~~");
-    let input_string = include_str!("../input.txt");
-    let inputs: Vec<&str> = input_string.split("\r\n\r\n").collect();
-    
-    let passwords: Vec<HashMap<&str,&str>> = inputs.iter().map(|pwd| parse_password(pwd)).collect();
-    
-    let n = passwords.iter().count();
-    println!("{} passwords!", n);
-    println!("{} valid passwords!", passwords.iter().filter(|pwd| validate_better(pwd)).count());
-
-    //println!("{}",REQQ_FIELDS.iter().all(|item| timber_resources.contains(item)));
-}
-
-// sick solution from internet
-#[test]
-pub fn main2() {
-    let input_string = include_str!("../input.txt");
-    println!(
-        "{}",
-        input_string
-            .split("\r\n\r\n")
-            .map(|fields| fields
-                .split_ascii_whitespace()
-                .map(|field| field.split(':').next().unwrap())
-                .collect::<HashSet<_>>())
-            .filter(|passport| REQ_FIELDS.iter().all(|item| passport.contains(item)))
-            .count(),
-    );
-}
