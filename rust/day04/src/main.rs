@@ -1,8 +1,16 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fs;
+use regex::Regex;
+use lazy_static::lazy_static;
 
 //use std::io::BufRead;
+
+lazy_static! {
+    static ref HEIGHT: Regex = Regex::new(r"^(\d+)(in|cm)$").unwrap();
+    static ref HAIRCOLORS: Regex = Regex::new(r"^#[0-9a-f]{6}$").unwrap();
+    static ref PASSPORTID: Regex = Regex::new(r"^[0-9]{9}$").unwrap();
+}
 
 /**
  * byr (Birth Year)
@@ -56,16 +64,57 @@ fn validate(pwd_map: &HashMap<&str,&str>) -> bool {
 
 fn validate_better(pwd_map: &HashMap<&str,&str>) -> bool {
     let has_valid_fields = REQ_FIELDS.iter().all(|field| pwd_map.contains_key(field));
-    let byr = pwd_map.get("byr").unwrap();
-    let iyr = pwd_map.get("iyr").unwrap();
-    let eyr = pwd_map.get("eyr").unwrap();
-    let hgt = pwd_map.get("hgt").unwrap();
-    let hcl = pwd_map.get("hcl").unwrap();
-    let ecl = pwd_map.get("ecl").unwrap();
-    let pid = pwd_map.get("pid").unwrap();
-    let cid = pwd_map.get("cid").unwrap();
-    byr >=1920 && byr <=2002
-    
+
+    return pwd_map.iter().all(|(&key, &val)| validate_field(key,val));
+}
+
+fn validate_field(key: &str, content: &str) -> bool {
+
+    match key {
+        "byr" => { //four digits; at least 1920 and at most 2002
+            if let Ok(byr) = content.parse::<i32>() {
+                return byr >= 1920 && byr <= 2002;
+            } else {
+                return false;
+            }
+        }
+        "iyr" => { // four digits; at least 2010 and at most 2020
+            false
+        }
+        "eyr" => { // four digits; at least 2020 and at most 2030
+            false
+        }
+        "hgt" => { // a number followed by either cm or in:
+            if content.ends_with("cm") {
+                //content.chars().last()
+                false
+            } else if content.ends_with("in") {
+                false
+            } else {
+                false
+            }
+        }
+        "hcl" => { // a # followed by exactly six characters 0-9 or a-f
+            content.chars().count() == 6 &&
+            content.chars().all(|c| (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') )
+        }
+        "ecl" => { // exactly one of: amb blu brn gry grn hzl oth
+            match content {
+                "amb" | "blu" | "brn" | "gry" | "grn" | "hzl" | "oth" => return true,
+                _ => return false,
+            }
+        }
+        "pid" => { // a nine-digit number, including leading zeroes
+            content.chars().count() == 9 &&
+            content.chars().all(|c| c >= '0' && c <= '9' )
+        }
+        "cid" => { // ignored, missing or not
+            true
+        }
+        _ => {
+            panic!("unknown key {}", key);
+        }
+    }
 }
 
 
@@ -80,6 +129,21 @@ fn main() {
     let n = passwords.iter().count();
     println!("{} passwords!", n);
     println!("{} valid passwords!", passwords.iter().filter(|pwd| validate(pwd)).count());
+
+    //println!("{}",REQQ_FIELDS.iter().all(|item| timber_resources.contains(item)));
+}
+
+#[test]
+fn part_2() {
+    println!("~~~~ AoC 2020 day04 part 2 ~~~~");
+    let input_string = include_str!("../input.txt");
+    let inputs: Vec<&str> = input_string.split("\r\n\r\n").collect();
+    
+    let passwords: Vec<HashMap<&str,&str>> = inputs.iter().map(|pwd| parse_password(pwd)).collect();
+    
+    let n = passwords.iter().count();
+    println!("{} passwords!", n);
+    println!("{} valid passwords!", passwords.iter().filter(|pwd| validate_better(pwd)).count());
 
     //println!("{}",REQQ_FIELDS.iter().all(|item| timber_resources.contains(item)));
 }
