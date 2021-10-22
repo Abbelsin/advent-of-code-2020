@@ -65,7 +65,11 @@ fn validate(pwd_map: &HashMap<&str,&str>) -> bool {
 fn validate_better(pwd_map: &HashMap<&str,&str>) -> bool {
     let has_valid_fields = REQ_FIELDS.iter().all(|field| pwd_map.contains_key(field));
 
-    return pwd_map.iter().all(|(&key, &val)| validate_field(key,val));
+    let valid = pwd_map.iter().all(|(&key, &val)| validate_field(key,val));
+    if !valid {
+        println!("{:?}", pwd_map);
+    }
+    return valid;
 }
 
 fn validate_field(key: &str, content: &str) -> bool {
@@ -79,24 +83,45 @@ fn validate_field(key: &str, content: &str) -> bool {
             }
         }
         "iyr" => { // four digits; at least 2010 and at most 2020
-            false
+            return {
+                content.chars().count() == 4 &&
+                if let Ok(byr) = content.parse::<i32>() {
+                    byr >= 2010 && byr <= 2020
+                } else {
+                    false
+                }
+            };
         }
         "eyr" => { // four digits; at least 2020 and at most 2030
-            false
+            return {
+                content.chars().count() == 4 &&
+                if let Ok(byr) = content.parse::<i32>() {
+                    byr >= 2020 && byr <= 2030
+                } else {
+                    false
+                }
+            };
         }
         "hgt" => { // a number followed by either cm or in:
             if content.ends_with("cm") {
                 //content.chars().last()
-                false
+                let mut chars = content.chars();
+                chars.next_back();
+                chars.next_back();
+                if let Ok(_hgt) = chars.as_str().parse::<u32>() {
+                    return  true;
+                } else {
+                    return false;
+                }
             } else if content.ends_with("in") {
-                false
+                true
             } else {
-                false
+                return false;
             }
         }
         "hcl" => { // a # followed by exactly six characters 0-9 or a-f
-            content.chars().count() == 6 &&
-            content.chars().all(|c| (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') )
+            return content.chars().count() == 7 &&
+            content.chars().all(|c| (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || c == '#');
         }
         "ecl" => { // exactly one of: amb blu brn gry grn hzl oth
             match content {
