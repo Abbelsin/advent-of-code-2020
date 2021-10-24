@@ -19,9 +19,6 @@ impl BoardingPass {
         let _seat_id: u16 = (_row as u16)*8 + (_col as u16);
         BoardingPass { row: _row, col: _col, seat_id: _seat_id}
     }
-    fn print(&self) {
-        println!("{}",self);
-    }
 }
 
 impl fmt::Display for BoardingPass {
@@ -48,13 +45,26 @@ fn test_boarding_pass() {
 }
 
 fn main() {
-    println!("--- Day 5: Binary Boarding ---");
+    println!("╔══ Day 5: Binary Boarding ══╗");
     let puzzle_input = include_str!("../input.txt");
-    for line in puzzle_input.lines() {
-        let bp = BoardingPass::decode(line);
-        bp.print();
+    let mut b_passes: Vec<BoardingPass> = puzzle_input.lines()
+        .map(|line|BoardingPass::decode(line)).collect();
+    println!("╟┬─(Part 1)─────────────────┐║");
+    let maximum_seat_id = b_passes.iter()
+        .map(|bp| bp.seat_id).max().unwrap();
+    println!("║│ Largest seat_id: {}", maximum_seat_id);
+    println!("║└──────────────────────────┘║");
+
+    println!("╟┬─(Part 2)─────────────────┐║");
+    b_passes.sort_by(|a, b| a.seat_id.cmp(&b.seat_id));
+    let mut prev_pass_id: u16 = 0; 
+    for pass in b_passes.iter() {
+        if pass.seat_id > prev_pass_id+1 && prev_pass_id != 0 {
+            println!("║│ {} ->{}<- {}",prev_pass_id, prev_pass_id+1, pass.seat_id);
+            
+        }
+        prev_pass_id = pass.seat_id;
     }
-    let b_passes: Vec<BoardingPass> = puzzle_input.lines().map(|line|BoardingPass::decode(line)).collect();
-    let maximum_seat_id = b_passes.iter().map(|bp| bp.seat_id).max().unwrap();
-    println!("Largest seat_id: {}", maximum_seat_id);
+    println!("║└──────────────────────────┘║");
+    println!("╚════════════════════════════╝");
 }
